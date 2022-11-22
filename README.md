@@ -13,7 +13,7 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
 
 ### Prerequisites
 1. Setup Cloud WAN, select the regions of your choice, and create 3 segments called Finance, Sales and HR
-2. Create 3 VPC IPAM Pools named Finance, Sales and HR
+2. Create 3 VPC IPAM Pools named finance, sales and hr
 3. Tag the Finance pool with the value 'finance', Sales pool with the value 'sales', and HR pool with the value 'hr'
 4. Create an EventBridge rule
 5. Repeat steps 6-10 for every target-region where you'd like to deploy this solution
