@@ -9,6 +9,8 @@ You have a global network, across 3 regions. Cloud WAN provides global network o
 
 Whenever a VPC's attachment to Cloud WAN is created, this solution detects the 'attachment created' event, and automatically pushes the department's summary route into the VPC's routing table.
 
+![Example Global Network](Example-Global-Network.png)
+
 ### Prerequisites
 1. Setup Cloud WAN, select the regions of your choice, and create 3 segments called Finance, Sales and HR
 2. Create 3 VPC IPAM Pools named Finance, Sales and HR
