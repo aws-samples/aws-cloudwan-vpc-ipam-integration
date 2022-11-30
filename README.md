@@ -17,6 +17,7 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
 3. Tag the Finance pool with the value 'finance', Sales pool with the value 'sales', and HR pool with the value 'hr'
 4. Create a VPC where your workloads will reside. The region where the VPC is created is hereafter called as the 'target region'. Optionally, use VPC's department's IPAM pool to provide CIDR to the VPC: https://docs.aws.amazon.com/vpc/latest/ipam/create-vpc-ipam.html
 5. Create an EventBridge rule in us-west-2 region with this event pattern:
+```
 {
   "account": ["<<Enter account number>>"],
   "detail-type": ["Network Manager Topology Change"],
@@ -25,6 +26,7 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
     "edgeLocation": ["<<enter target-region name, for example us-west-1>>"]
   }
 }
+```
 6. Set the target of this rule as the EventBridge event default bus in the target region. Use an IAM role with the right permissions.
 7. Download the file named "update-VPC-RT.py", and deploy it as a lambda function in the target region. The lambda role must have the right IAM permissions to read from IPAM, and update VPC routing tables. 
 8. Create an EventBridge Rule in the target region with this event pattern:
