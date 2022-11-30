@@ -133,7 +133,8 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
 ```
 
 11. Create a VPC attachment to the corresponding CloudWAN segment (for example, attaching the finance department's VPC to Cloud WAN's finance segment). Tag the Cloud WAN VPC attachment with key:value pair of "Department:<department-name>". For example: "Department:finance"
-12. After a few minutes, check the VPC's associated routing table. It should have a route with a prefix list and target as the CloudWAN core-network. The prefix list should contain the VPC's department's CIDR.
+12. On the Cloud WAN attachments page, select the newly create attachment, then click 'accept'. A window should pop us asking whether you'd like accept the attachment. Click 'accept'
+13. After a few minutes, check the VPC's associated routing table. It should have a route with a prefix list and target as the CloudWAN core-network. The prefix list should contain the VPC's department's CIDR.
 
 
 ### Considerations
