@@ -140,3 +140,5 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
 ### Considerations
 1. This solution is useful when your VPCs have multiple exit points. In the scenario drawing, each VPC has 2 exit points. One towards the Cloud WAN core-network, and second towards AWS Direct Connect gateway
 2. In addition to the networking constructs, there's pricing associated with EventBridge and with Lambda. Please check out service pricing pages for more details
+
+Please reach out to aichadha@amazon.com in case you have any questions about this repo.
