@@ -142,4 +142,5 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
 2. In addition to the networking constructs, there's pricing associated with EventBridge and with Lambda. Please check out service pricing pages for more details
 
 This solution was presented at re:Invent 2022 as a breakout session. Video recording is available here: https://www.youtube.com/watch?v=rvJMCdjSZxU
+  
 Please reach out to aichadha@amazon.com in case you have any questions about this repo.
