@@ -13,35 +13,7 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
 
 ### Steps
 1. Setup Cloud WAN, select the regions of your choice, and create 3 segments called Finance, Sales and HR
-2. Create 3 VPC IPAM Pools named finance, sales and hr
-3. Tag the Finance pool with the value 'finance', Sales pool with the value 'sales', and HR pool with the value 'hr'
-4. Create a VPC where your workloads will reside. The region where the VPC is created is hereafter called as the 'target region'. Optionally, use VPC's department's IPAM pool to provide CIDR to the VPC: https://docs.aws.amazon.com/vpc/latest/ipam/create-vpc-ipam.html
-5. Create an EventBridge rule in us-west-2 region with this event pattern:
-```
-{
-  "account": ["<<Enter account number>>"],
-  "detail-type": ["Network Manager Topology Change"],
-  "detail": {
-    "changeType": ["VPC_ATTACHMENT_CREATED"],
-    "edgeLocation": ["<<enter target-region name, for example us-west-1>>"]
-  }
-}
-```
-6. Set the target of this rule as the EventBridge event default bus in the target region. Use an IAM role with the right permissions.
-7. Download the file named "update-VPC-RT.py", and deploy it as a lambda function in the target region. The lambda role must have the right IAM permissions to read from IPAM, and update VPC routing tables. 
-8. Create an EventBridge Rule in the target region with this event pattern:
-```
-{
-  "account": ["<<Enter account number>>"],
-  "source": ["aws.networkmanager"],
-  "detail-type": ["Network Manager Topology Change"],
-  "detail": {
-    "changeType": ["VPC_ATTACHMENT_CREATED"]
-  }
-}
-```
-9. Set the target for this EventBridge rule as the lambda function deployed in the step# 7
-10. Create a CloudWAN global network. Use this policy. This example policy uses us-east-1, us-west-1 and ap-southeast-1 as the target-regions. Please update the policy in case you're planning to use different regions.
+2. Create a CloudWAN global network. Use this policy. This example policy uses us-east-1, us-west-1 and ap-southeast-1 as the target-regions. Please update the policy in case you're planning to use different regions.
 ```
 {
   "version": "2021.12",
@@ -131,7 +103,34 @@ Whenever a VPC's attachment to Cloud WAN is created, this solution detects the '
   ]
 }
 ```
-
+3. Create 3 VPC IPAM Pools named finance, sales and hr
+4. Tag the Finance pool with the value 'finance', Sales pool with the value 'sales', and HR pool with the value 'hr'
+5. Create a VPC where your workloads will reside. The region where the VPC is created is hereafter called as the 'target region'. Optionally, use VPC's department's IPAM pool to provide CIDR to the VPC: https://docs.aws.amazon.com/vpc/latest/ipam/create-vpc-ipam.html
+6. Create an EventBridge rule in us-west-2 region with this event pattern:
+```
+{
+  "account": ["<<Enter account number>>"],
+  "detail-type": ["Network Manager Topology Change"],
+  "detail": {
+    "changeType": ["VPC_ATTACHMENT_CREATED"],
+    "edgeLocation": ["<<enter target-region name, for example us-west-1>>"]
+  }
+}
+```
+7. Set the target of this rule as the EventBridge event default bus in the target region. Use an IAM role with the right permissions.
+8. Download the file named "update-VPC-RT.py", and deploy it as a lambda function in the target region. The lambda role must have the right IAM permissions to read from IPAM, and update VPC routing tables. 
+9. Create an EventBridge Rule in the target region with this event pattern:
+```
+{
+  "account": ["<<Enter account number>>"],
+  "source": ["aws.networkmanager"],
+  "detail-type": ["Network Manager Topology Change"],
+  "detail": {
+    "changeType": ["VPC_ATTACHMENT_CREATED"]
+  }
+}
+```
+10. Set the target for this EventBridge rule as the lambda function deployed in the step# 7
 11. Create a VPC attachment to the corresponding CloudWAN segment (for example, attaching the finance department's VPC to Cloud WAN's finance segment). Tag the Cloud WAN VPC attachment with key:value pair of "Department:<department-name>". For example: "Department:finance"
 12. On the Cloud WAN attachments page, select the newly create attachment, then click 'accept'. A window should pop us asking whether you'd like accept the attachment. Click 'accept'
 13. After a few minutes, check the VPC's associated routing table. It should have a route with a prefix list and target as the CloudWAN core-network. The prefix list should contain the VPC's department's CIDR.
