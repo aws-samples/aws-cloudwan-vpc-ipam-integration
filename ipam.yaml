@@ -1,0 +1,188 @@
+
+
+Resources:
+# ---------- IPAM ----------
+  IPAM:
+    Type: AWS::EC2::IPAM
+    Properties: 
+      Description: IPAM used for Cloud WAN end to end global routing demo
+      OperatingRegions: 
+        - RegionName: us-east-1
+        - RegionName: us-west-1
+        - RegionName: ap-southeast-1
+      Tags: 
+        - Key: Name
+          Value: ipam
+        - Key: project
+          Value: cloud-wan-demo
+
+  IPAMTopLevelPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Top Level Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      ProvisionedCidrs: 
+        - Cidr: 172.16.0.0/12
+      Tags: 
+        - Key: Name
+          Value: top-level-pool
+        - Key: project
+          Value: cloud-wan-demo
+  
+  HrTopLevelPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the HR Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref IPAMTopLevelPool
+      ProvisionedCidrs: 
+        - Cidr: 172.16.0.0/14
+      Tags: 
+        - Key: Name
+          Value: hr
+        - Key: project
+          Value: cloud-wan-demo
+  
+  HrUSPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the HR US Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref HrTopLevelPool
+      Locale: us-east-1
+      ProvisionedCidrs: 
+        - Cidr: 172.16.0.0/15
+      Tags: 
+        - Key: Name
+          Value: hr-us-pool
+        - Key: project
+          Value: cloud-wan-demo
+  
+  HrAsiaPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the HR Asia Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref HrTopLevelPool
+      Locale: ap-southeast-1
+      ProvisionedCidrs: 
+        - Cidr: 172.18.0.0/15
+      Tags: 
+        - Key: Name
+          Value: hr-asia-pool
+        - Key: project
+          Value: cloud-wan-demo
+
+  FinanceTopLevelPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Finance Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref IPAMTopLevelPool
+      ProvisionedCidrs: 
+        - Cidr: 172.20.0.0/14
+      Tags: 
+        - Key: Name
+          Value: finance
+        - Key: project
+          Value: cloud-wan-demo
+  
+  FinanceEUPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Finance EU Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref FinanceTopLevelPool
+      Locale: us-west-1
+      ProvisionedCidrs: 
+        - Cidr: 172.20.0.0/15
+      Tags: 
+        - Key: Name
+          Value: finance-eu-pool
+        - Key: project
+          Value: cloud-wan-demo
+  
+  FinanceUSPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Finance US Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref FinanceTopLevelPool
+      Locale: us-east-1
+      ProvisionedCidrs: 
+        - Cidr: 172.22.0.0/15
+      Tags: 
+        - Key: Name
+          Value: finance-us-pool
+        - Key: project
+          Value: cloud-wan-demo
+  
+  SalesTopLevelPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Sales Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref IPAMTopLevelPool
+      ProvisionedCidrs: 
+        - Cidr: 172.24.0.0/14
+      Tags: 
+        - Key: Name
+          Value: sales
+        - Key: project
+          Value: cloud-wan-demo
+  
+  SalesEUPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Sales EU Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref SalesTopLevelPool
+      Locale: us-west-1
+      ProvisionedCidrs: 
+        - Cidr: 172.24.0.0/15
+      Tags: 
+        - Key: Name
+          Value: sales-eu-pool
+        - Key: project
+          Value: cloud-wan-demo
+  
+  SalesAsiaPool:
+    Type: AWS::EC2::IPAMPool
+    Properties: 
+      AddressFamily: ipv4
+      Description: This is the Sales Asia Pool
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      SourceIpamPoolId: !Ref SalesTopLevelPool
+      Locale: ap-southeast-1
+      ProvisionedCidrs: 
+        - Cidr: 172.26.0.0/15
+      Tags: 
+        - Key: Name
+          Value: sales-asia-pool
+        - Key: project
+          Value: cloud-wan-demo
+
+# ---------- Outputs ----------
+Outputs:
+  HrUSPoolId:
+    Value: !GetAtt HrUSPool.IpamPoolId
+    Description: HR US Pool Id
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-HrUSPoolId"
+  
+  HrAsiaPoolId:
+    Value: !GetAtt HrAsiaPool.IpamPoolId
+    Description: HR Asia Pool Id
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-HrAsiaPoolId"
