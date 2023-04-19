@@ -1,0 +1,56 @@
+Parameters:
+  EventBridgeArn:
+    Description: Arn of EventBridge
+    Type: String
+
+Resources:
+# ---------- EventBridge Rule ----------
+  EventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "EventRule to trigger lambda function"
+      EventPattern: 
+        source: 
+          - "aws.networkmanager"
+        detail-type: 
+          - "Network Manager Topology Change"
+        detail: 
+          changeType: 
+            - "VPC_ATTACHMENT_CREATED"
+      Targets: 
+        - Arn:
+            !Ref EventBridgeArn
+          Id: "default"
+          RoleArn: !GetAtt EventBridgeIAMrole.Arn
+  
+  EventBridgeIAMrole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              !Sub events.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: PutEventsDestinationBus
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - events:PutEvents
+            Resource:
+            - !Ref EventBridgeArn
+
+# ---------- Outputs ----------
+Outputs:
+  EventBridgeRuleArn:
+    Value: !GetAtt EventRule.Arn
+    Description: EventBridge Bus Arn
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-EventBusArn"

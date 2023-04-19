@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudWAN VPC Attachment
+
+Parameters:
+  VPCArn:
+    Description: Arn of VPC attachment
+    Type: String
+  SubnetArn:
+    Description: Arn of subnet attachment
+    Type: String
+  CoreNetworkId:
+    Description: Id of Core Network
+    Type: String
+  DepartmentTagValue:
+    Description: Name of Department
+    Type: String
+
+Resources:
+# ---------- Cloud WAN VPC Attachment ----------
+  VPCAttachment:
+    Type: AWS::NetworkManager::VpcAttachment
+    Properties: 
+      CoreNetworkId: !Ref CoreNetworkId
+      SubnetArns: 
+        - !Ref SubnetArn
+      Tags: 
+        - Key: Department
+          Value: !Ref DepartmentTagValue
+      VpcArn: !Ref VPCArn

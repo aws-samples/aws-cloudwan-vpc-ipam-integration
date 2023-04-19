@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudWAN Demo - Deploy CloudWAN
+
+Resources:
+# ---------- Cloud WAN Global Network ----------
+  GlobalNetwork:
+    Type: AWS::NetworkManager::GlobalNetwork
+    Properties:
+      Description: Global Network - Cloud WAN Demo
+      Tags:
+        - Key: project
+          Value: cloud-wan-demo
+        - Key: Name
+          Value: Demo-GlobalNetwork
+
+  CoreNetwork:
+    Type: AWS::NetworkManager::CoreNetwork
+    Properties:
+      GlobalNetworkId: !Ref GlobalNetwork
+      PolicyDocument:
+        version: "2021.12"
+        core-network-configuration:
+          vpn-ecmp-support: true
+          inside-cidr-blocks:
+            - 192.0.0.0/8
+          asn-ranges:
+            - 64520-65534
+          edge-locations:
+            - location: us-east-1
+            - location: us-west-1
+            - location: ap-southeast-1
+        segments:
+          - name: finance
+            require-attachment-acceptance: false
+          - name: hr
+            require-attachment-acceptance: false
+          - name: sales
+            require-attachment-acceptance: false
+        attachment-policies:
+          - rule-number: 99
+            condition-logic: or
+            conditions:
+              - type: tag-value
+                key: Department
+                operator: equals
+                value: sales
+            action:
+              association-method: constant
+              segment: sales
+          - rule-number: 98
+            condition-logic: or
+            conditions:
+              - type: tag-value
+                key: Department
+                operator: equals
+                value: hr
+            action:
+              association-method: constant
+              segment: hr
+          - rule-number: 97
+            condition-logic: or
+            conditions:
+              - type: tag-value
+                key: Department
+                operator: equals
+                value: finance
+            action:
+              association-method: constant
+              segment: finance
+
+# ---------- Outputs ----------
+Outputs:
+  CoreNetworkId:
+    Value: !GetAtt CoreNetwork.CoreNetworkId
+    Description: Core Network Id
+  
+  CoreNetworkArn:
+    Value: !GetAtt CoreNetwork.CoreNetworkArn
+    Description: Core Network ARN
+  

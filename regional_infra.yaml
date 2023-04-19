@@ -1,0 +1,375 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudWAN Demo - Create VPC and Subnet
+
+Parameters:
+  LatestAmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+  IpamPoolId:
+    Description: IPAM Pool Id 
+    Type: String
+  VPCTagValue:
+    Description: Name of the VPC
+    Type: String
+
+Resources:
+# ---------- VPC ----------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      Ipv4IpamPoolId: !Ref IpamPoolId
+      Ipv4NetmaskLength: 16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Ref VPCTagValue
+        - Key: project
+          Value: cloud-wan-demo
+  
+  VPCPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref VPC
+      CidrBlock: !Select ["0", !Cidr [ !GetAtt VPC.CidrBlock, "16", "12" ]]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: hr-subnet
+        - Key: project
+          Value: cloud-wan-demo
+
+# ---------- Security Groups (Instance and VPC endpoint) ---------- 
+  VPCInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Production VPC - Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing ICMP traffic
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  VPCEndpointsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Production VPC - Endpoints Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: Allowing HTTPS
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref VPCInstanceSecurityGroup
+
+# ---------- EC2 Instance ----------
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      SecurityGroupIds:
+        - !Ref VPCInstanceSecurityGroup
+      SubnetId:
+        !Ref VPCPrivateSubnet
+      ImageId: !Ref LatestAmiId
+      IamInstanceProfile: !Ref EC2SSMInstanceProfile
+      Tags:
+        - Key: Name
+          Value: "cloud-wan-demo-instance"
+
+# ---------- SSM Endpoints ----------
+  SSMVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref VPCPrivateSubnet
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: True
+
+  SSMMessagesProdVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref VPCPrivateSubnet
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: True
+
+  EC2MessagesProdVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref VPCPrivateSubnet
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: True
+
+# ---------- IAM ROLE (EC2 INSTANCE) ----------
+  EC2SSMIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+
+  EC2SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2SSMIAMRole
+
+# ---------- Lambda Role ----------  
+  LambdaPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyName: LambdaUpdateRTPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+      Roles:
+        - !Ref LambdaRole
+  
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Role that will be used for the Lambda function
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: LambdaRole
+        - Key: project
+          Value: cloud-wan-demo
+
+# ---------- Lambda Function ----------   
+  LambdaUpdateRT:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Updates a VPC RT
+      Handler: index.lambda_handler
+      Role: !GetAtt  LambdaRole.Arn
+      Runtime: python3.9
+      Tags:
+          - Key: Name
+            Value: lambda-update-rt
+          - Key: project
+            Value: cloud-wan-demo
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import urllib
+          import logging
+          from botocore.vendored import requests
+
+          ec2 = boto3.client('ec2')
+          ec2r = boto3.resource('ec2')
+          nm = boto3.client('networkmanager')
+          logger = logging.getLogger(__name__)
+
+          def lambda_handler(event, context):
+              #print("Event json passed to lambda: " + json.dumps(event, indent=2))
+              #print (event["detail"]["changeType"])
+              try:
+                  #print ("PRINTING DEFAULT ROUTE TABLE NOW.")
+                  if event["detail"]["changeType"] == "VPC_ATTACHMENT_CREATED":
+                      #print ("VPC add event detected. Updating default routing table.")
+                      vpcId = event["detail"]["vpcArn"].split("/")[1]
+                      coreNetworkArn = event["detail"]["coreNetworkArn"]
+                      defrt = get_vpc(vpcId)
+                      print ("PRINTING DEFAULT ROUTE TABLE NOW.")
+                      print(defrt)
+
+                      #vpcarn = (event["detail"]["vpcArn"])
+                      attachmentId = event["detail"]["attachmentArn"].split("/")[1]
+                      print ("ATTACHMENT ID IS.")
+                      print (attachmentId)
+                      attachment_tag = get_attachment_tag(attachmentId)
+                      print ("ATTACHMENT TAG IS.")
+                      print (attachment_tag)
+                      cidr = get_cidr(attachment_tag)
+                      # Updates made to working lambda on Apr-25
+                      plid = create_pl(attachment_tag, cidr)
+                      add_route(defrt, plid, coreNetworkArn)
+                      #add_route(defrt, cidr, coreNetworkArn)
+                  else:
+                      print (event["detail"]["changeType"])
+              except Exception as e:
+                  logger.info(format(e))
+              return {
+                  'statusCode': 200,
+                  #'body': json.dumps('Hello from Lambda!')
+              }
+
+          def get_vpc(VPCID):
+              print ("Inside get_vpc")
+              print (VPCID)
+              response = ec2.describe_route_tables(
+                Filters=[
+                  {
+                    'Name': 'association.main',
+                    'Values': [ 'true' ]
+                  },
+                  {
+                    'Name': 'vpc-id',
+                    'Values': [ VPCID ]
+                  }
+                ]
+              )
+              print("Printing the VPC Route Table ID ....")
+              RouteTableID=response['RouteTables'][0]['RouteTableId']
+              print(RouteTableID)
+              return RouteTableID
+
+          def get_attachment_tag(ATTACHMENT_ID):
+              print ("Inside get_attachment_tag.")
+              try:
+                  response2 = nm.get_vpc_attachment(AttachmentId=ATTACHMENT_ID)
+                  #print (response2)
+                  tagList = response2["VpcAttachment"]["Attachment"]["Tags"]
+                  d = next((d for d in tagList if d.get("Key") == "Department"), None)
+                  print (d["Value"])
+                  return d["Value"]
+              except Exception as e:
+                  logger.info('ERROR IS: {}'.format(e))
+                  
+          def get_cidr(ATTACHMENT_TAG):
+              print ("Inside get_cidr")
+              print (ATTACHMENT_TAG)
+              ec2 = boto3.client('ec2', region_name='us-east-1')
+              poolResponse = ec2.describe_ipam_pools()
+              pools = poolResponse["IpamPools"]
+              #print(pools)
+              for i in pools:
+                  for tags in i["Tags"]:
+                      if ATTACHMENT_TAG in tags.values():
+                          poolId = i["IpamPoolId"]
+                          print (poolId)
+                          break
+              cidr = ec2.get_ipam_pool_cidrs(IpamPoolId=poolId)["IpamPoolCidrs"][0]["Cidr"]
+              print (cidr)
+              return cidr
+    
+          def add_route(defrt, plid, coreNetworkArn):
+              print ("Inside add_route")
+              print (plid)
+              try: 
+                  defrtobj = ec2r.RouteTable(defrt)
+                  route_obj = defrtobj.create_route(DestinationPrefixListId=plid, CoreNetworkArn=coreNetworkArn)
+                  print ("JOB DONE!")
+              except Exception as e:
+                  logger.info('ERROR IS: {}'.format(e))
+                  
+          def create_pl(plname, cidr):
+              print ("Inside create_pl")
+              print (plname)
+              try:
+                  existing_pl = ec2.describe_managed_prefix_lists(Filters=[{'Name': 'prefix-list-name', 'Values': [plname]}])
+                  print (existing_pl["PrefixLists"])
+                  if (existing_pl["PrefixLists"]):
+                      print ("PL EXISTS.")
+                      print (existing_pl["PrefixLists"][0]["PrefixListId"])
+                      return existing_pl["PrefixLists"][0]["PrefixListId"]
+                  else:
+                      route_entry = [{'Cidr': cidr, 'Description': 'Fetched from VPC IPAM'}]
+                      pl = ec2.create_managed_prefix_list(PrefixListName=plname, Entries=route_entry, MaxEntries=10, AddressFamily='IPv4')
+                      return pl["PrefixList"]["PrefixListId"]
+              except Exception as e:
+                  logger.info('ERROR IS: {}'.format(e))
+
+# ---------- EventBridge Rule ----------
+  EventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "EventRule to trigger lambda function"
+      EventPattern: 
+        source: 
+          - "aws.networkmanager"
+        detail-type: 
+          - "Network Manager Topology Change"
+        detail: 
+          changeType: 
+            - "VPC_ATTACHMENT_CREATED"
+      Targets: 
+        - Arn: !GetAtt LambdaUpdateRT.Arn
+          Id: !Ref LambdaUpdateRT
+  
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref LambdaUpdateRT
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt EventRule.Arn
+
+# ---------- Outputs ----------
+Outputs:
+  VPCArn:
+    Value: !Join
+      - ''
+      - - 'arn:aws:ec2:'
+        - !Ref 'AWS::Region'
+        - ':'
+        - !Ref 'AWS::AccountId'
+        - ':vpc/'
+        - !Ref VPC
+    Description: VPC ARN
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-VPCArn"
+  
+  SubnetArn:
+    Value: !Join
+      - ''
+      - - 'arn:aws:ec2:'
+        - !Ref 'AWS::Region'
+        - ':'
+        - !Ref 'AWS::AccountId'
+        - ':subnet/'
+        - !Ref VPCPrivateSubnet
+
+  EventBridgeArn:
+    Value: !Join 
+            - ""
+            - - !Select [0, !Split [ ':rule', !GetAtt EventRule.Arn ]]
+              - ":event-bus/default" 
+    Description: Region EventBridge Bus Arn
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-EventBusArn"
